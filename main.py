@@ -6,6 +6,7 @@ from typing import IO, List
 START_BYTE = 2
 END_BYTE = 3
 
+
 @dataclass
 class LogEntry:
     # I think this is local time?
@@ -19,6 +20,7 @@ class LogEntry:
     def body_txt(self):
         bs = bytearray()
 
+        # Filter most of the chat tokens.
         skip = False
         for b in self.body:
             if skip:
@@ -30,7 +32,6 @@ class LogEntry:
                 else:
                     bs.append(b)
 
-        # Doesn't filter chat tokens, so you'll get a lot of garbage.
         return bs.decode("utf-8", "ignore")
 
 
@@ -81,12 +82,13 @@ if __name__ == "__main__":
             channel = f.read(1)[0]
             filler = f.read(4)  # 00 00 1F 1F
             body = f.read(body_size)
-            parsed_body = parse_body(body)
+            # parsed_body = parse_body(body)
 
             entries.append(LogEntry(datetime.fromtimestamp(
                 timestamp), chat_filter, channel, filler, body))
 
             prev_offset = offsets[i]
 
+    # Print all entries as (mostly) plain text
     for entry in entries:
         print(f"{entry.timestamp} {entry.body_txt}")
