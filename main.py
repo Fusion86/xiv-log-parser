@@ -67,9 +67,11 @@ if __name__ == "__main__":
 
     with open(sys.argv[1], "rb") as f:
         body_len = read_int(f)
-        entry_count = read_int(f)
+        file_len = read_int(f)
+        entry_count = file_len - body_len
 
         print(f"body_len: {body_len}")
+        print(f"file_len: {file_len}")
         print(f"entry_count: {entry_count}")
 
         offsets = [read_int(f) for _ in range(entry_count)]
