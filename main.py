@@ -13,7 +13,6 @@ class LogEntry:
     timestamp: datetime
     chat_filter: int
     channel: int
-    _filler: bytes
     body: bytes
 
     @property
@@ -32,6 +31,13 @@ class LogEntry:
                 else:
                     bs.append(b)
 
+        # If the message has a 'sender' it happens before the second 1F.
+        # If no sender we can just remove the leading 1F, otherwise turn the 1F into a colon for prettiness.
+        if bs.startswith(b'\x1f'):
+            bs = bs[1:]
+        else:
+            bs = bs.replace(b'\x1f', b': ')
+
         return bs.decode("utf-8", "ignore")
 
 
@@ -46,7 +52,7 @@ def parse_body(body: bytes):
     # 20 20 EE 81 AF 20 = xxxx[PriceCheck] xxxxxxxŒgxxxx î�¯ xxxled to process itemxxx
     #
     # 20 20 ? ? ? 20 = The pattern?
-    # 
+    #
     # https://github.com/goatcorp/Dalamud/blob/master/Dalamud/Game/Text/SeStringHandling/Payloads/ItemPayload.cs#L234
     # https://github.com/goatcorp/Dalamud/blob/c7fc943692c27750df0d720fe2bddefbb75ebfed/Dalamud/Game/Text/SeStringHandling/Payload.cs#L251C42-L251C42
 
@@ -78,23 +84,23 @@ if __name__ == "__main__":
 
         prev_offset = 0
         for i in range(entry_count):
-            body_size = offsets[i] - prev_offset - 9
-            timestamp = read_int(f)
-            chat_filter = f.read(1)[0]
-            channel = f.read(1)[0]
-            filler = f.read(3)  # 00 00 1F
-            body = f.read(body_size)
+            body_len = offsets[i] - prev_offset
+
+            # The full body is delimited by 2x `0x1F`, the sender can be empty (zero bytes).
+            # timestamp chat_filter channel zero 0x1F sender 0x1F message
+
+            timestamp = read_int(f)  # 4 bytes
+            chat_filter = f.read(1)[0]  # 1 byte
+            channel = f.read(1)[0]  # 1 byte
+            zero_and_delim = f.read(3)  # 3 bytes
+            # summed together = 9 bytes
+
+            rest_of_body_len = body_len - 9
+            body = f.read(rest_of_body_len)
             # parsed_body = parse_body(body)
 
-            # If the message has a 'sender' it happens before the second 1F.
-            # If no sender we can just remove the leading 1F, otherwise turn the 1F into a colon for prettiness
-            if body.startswith(b'\x1f'):
-                body = body[1:]
-            else:
-                body = body.replace(b'\x1f', b': ')
-
             entries.append(LogEntry(datetime.fromtimestamp(
-                timestamp), chat_filter, channel, filler, body))
+                timestamp), chat_filter, channel, body))
 
             prev_offset = offsets[i]
 
