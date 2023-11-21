@@ -78,13 +78,20 @@ if __name__ == "__main__":
 
         prev_offset = 0
         for i in range(entry_count):
-            body_size = offsets[i] - prev_offset - 10
+            body_size = offsets[i] - prev_offset - 9
             timestamp = read_int(f)
             chat_filter = f.read(1)[0]
             channel = f.read(1)[0]
-            filler = f.read(4)  # 00 00 1F 1F
+            filler = f.read(3)  # 00 00 1F
             body = f.read(body_size)
             # parsed_body = parse_body(body)
+
+            # If the message has a 'sender' it happens before the second 1F.
+            # If no sender we can just remove the leading 1F, otherwise turn the 1F into a colon for prettiness
+            if body.startswith(b'\x1f'):
+                body = body[1:]
+            else:
+                body = body.replace(b'\x1f', b': ')
 
             entries.append(LogEntry(datetime.fromtimestamp(
                 timestamp), chat_filter, channel, filler, body))
