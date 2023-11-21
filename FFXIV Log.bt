@@ -1,0 +1,48 @@
+//------------------------------------------------
+//--- 010 Editor v10.0.1 Binary Template
+//
+//      File: 
+//   Authors: 
+//   Version: 
+//   Purpose: 
+//  Category: 
+// File Mask: 
+//  ID Bytes: 
+//   History: 
+//------------------------------------------------
+
+LittleEndian();
+
+struct LogEntry (int bodySize) {
+    int timestamp;
+    ubyte filter;
+    ubyte channel;
+    short unk; // Always 00 00?
+    ubyte filler;
+    Assert(unk == 0);
+    Assert(filler == 0x1F);
+    char body[bodySize];
+};
+
+struct LogToken {
+    ubyte header; // Always 0x20?
+    Assert(header == 0x20);
+    ubyte token;
+    ubyte len;
+    byte content[len];
+};
+
+struct {
+    int bodyLength;
+    int fileLength;
+    int offsets[fileLength - bodyLength];
+
+    local int i;
+    local int contentOffset = 0;
+    local int entryCount = fileLength - bodyLength;
+
+    for (i = 0; i < entryCount; i++) {
+        LogEntry entry(offsets[i] - contentOffset - 9);
+        contentOffset = offsets[i];
+    }
+} XivLog <open=true>;
