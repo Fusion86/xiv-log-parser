@@ -1,7 +1,7 @@
 import sys
 from dataclasses import dataclass
 from datetime import datetime
-from typing import IO, List
+from typing import BinaryIO, List
 
 START_BYTE = 2
 END_BYTE = 3
@@ -41,7 +41,7 @@ class LogEntry:
         return bs.decode("utf-8", "ignore")
 
 
-def read_int(stream: IO):
+def read_int(stream: BinaryIO):
     return int.from_bytes(stream.read(4), "little")
 
 
@@ -63,46 +63,52 @@ def parse_body(body: bytes):
     return parts
 
 
+def parse_entries(stream: BinaryIO) -> List[LogEntry]:
+    entries = []
+
+    body_len = read_int(stream)
+    file_len = read_int(stream)
+    entry_count = file_len - body_len
+
+    print(f"body_len: {body_len}")
+    print(f"file_len: {file_len}")
+    print(f"entry_count: {entry_count}")
+
+    offsets = [read_int(stream) for _ in range(entry_count)]
+
+    prev_offset = 0
+    for i in range(entry_count):
+        body_len = offsets[i] - prev_offset
+
+        # The full body is delimited by 2x `0x1F`, the sender can be empty (zero bytes).
+        # timestamp chat_filter channel zero 0x1F sender 0x1F message
+
+        timestamp = read_int(stream)  # 4 bytes
+        chat_filter = stream.read(1)[0]  # 1 byte
+        channel = stream.read(1)[0]  # 1 byte
+        zero_and_delim = stream.read(3)  # 3 bytes
+        # summed together = 9 bytes
+
+        rest_of_body_len = body_len - 9
+        body = stream.read(rest_of_body_len)
+        # parsed_body = parse_body(body)
+
+        entries.append(LogEntry(datetime.fromtimestamp(
+            timestamp), chat_filter, channel, body))
+
+        prev_offset = offsets[i]
+
+    return entries
+
+
 if __name__ == "__main__":
     if len(sys.argv) != 2:
         print("USAGE: python3 main.py path_to_logfile")
         print("EXAMPLE: python3 main.py 'C:/Users/<user>/Documents/My Games/FINAL FANTASY XIV - A Realm Reborn/FFXIV_CHR0040002E933EB474/log/00000000.log'")
         sys.exit(1)
 
-    entries: List[LogEntry] = []
-
     with open(sys.argv[1], "rb") as f:
-        body_len = read_int(f)
-        file_len = read_int(f)
-        entry_count = file_len - body_len
-
-        print(f"body_len: {body_len}")
-        print(f"file_len: {file_len}")
-        print(f"entry_count: {entry_count}")
-
-        offsets = [read_int(f) for _ in range(entry_count)]
-
-        prev_offset = 0
-        for i in range(entry_count):
-            body_len = offsets[i] - prev_offset
-
-            # The full body is delimited by 2x `0x1F`, the sender can be empty (zero bytes).
-            # timestamp chat_filter channel zero 0x1F sender 0x1F message
-
-            timestamp = read_int(f)  # 4 bytes
-            chat_filter = f.read(1)[0]  # 1 byte
-            channel = f.read(1)[0]  # 1 byte
-            zero_and_delim = f.read(3)  # 3 bytes
-            # summed together = 9 bytes
-
-            rest_of_body_len = body_len - 9
-            body = f.read(rest_of_body_len)
-            # parsed_body = parse_body(body)
-
-            entries.append(LogEntry(datetime.fromtimestamp(
-                timestamp), chat_filter, channel, body))
-
-            prev_offset = offsets[i]
+        entries = parse_entries(f)
 
     # Print all entries as (mostly) plain text
     for entry in entries:
